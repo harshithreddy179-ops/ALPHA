@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AlphaTrial: Strategy Lab</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/vendor/plotly.min.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">α</span>
+    <div>
+      <h1>AlphaTrial</h1>
+      <p>Build · Backtest · Validate</p>
+    </div>
+  </div>
+  <nav id="tabs">
+    <button data-tab="backtest" class="active">Backtest</button>
+    <button data-tab="compare">Compare</button>
+    <button data-tab="validate">Validation Lab</button>
+    <button data-tab="walkforward">Walk-Forward</button>
+    <button data-tab="regimes">Regimes</button>
+    <button data-tab="ml">ML Lab</button>
+    <button data-tab="costs">Cost Impact</button>
+    <button data-tab="report">Report</button>
+  </nav>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <section>
+      <h3>Data</h3>
+      <label>Dataset
+        <select id="dataset"></select>
+      </label>
+      <div id="dataset-info" class="muted small"></div>
+      <label class="upload">
+        <input type="file" id="upload" accept=".csv">
+        <span>⬆ Upload CSV (Date, Open, High, Low, Close, Volume)</span>
+      </label>
+      <div class="row2">
+        <label>Start <input type="date" id="start"></label>
+        <label>End <input type="date" id="end"></label>
+      </div>
+    </section>
+    <section>
+      <h3>Portfolio &amp; Costs</h3>
+      <label>Starting capital <input type="number" id="capital" value="100000" min="1000" step="1000"></label>
+      <div class="row2">
+        <label>Commission (bps) <input type="number" id="commission" value="5" min="0" step="1"></label>
+        <label>Slippage (bps) <input type="number" id="slippage" value="5" min="0" step="1"></label>
+      </div>
+      <label>Fixed fee / order <input type="number" id="fee" value="0" min="0" step="0.5"></label>
+    </section>
+    <section class="rules-box">
+      <h3>Engine guarantees</h3>
+      <ul class="checks">
+        <li>Signal at close <b>t</b> → fill at open <b>t+1</b></li>
+        <li>Whole shares, no leverage, cash-constrained</li>
+        <li>Commission + slippage on every fill</li>
+        <li>Indicators use trailing data only</li>
+        <li>Ranked by Sharpe, not raw profit</li>
+      </ul>
+    </section>
+  </aside>
+
+  <main>
+    <!-- BACKTEST -->
+    <section class="tab active" id="tab-backtest">
+      <div class="card controls">
+        <label>Strategy <select id="bt-strategy"></select></label>
+        <div id="bt-params" class="params"></div>
+        <button class="primary" id="bt-run">▶ Run backtest</button>
+      </div>
+      <p id="bt-desc" class="muted"></p>
+      <div id="rule-builder" class="card hidden">
+        <h3>Design your own strategy</h3>
+        <p class="muted small">Combine conditions on price, SMA, EMA, RSI, momentum, volatility, Bollinger bands and volume. Entry fires when the conditions hold; the exit closes the position.</p>
+        <div class="rb-cols">
+          <div>
+            <div class="rb-head"><b>Entry</b> when <select id="rb-entry-mode"><option value="all">ALL</option><option value="any">ANY</option></select> of:</div>
+            <div id="rb-entry"></div>
+            <button class="ghost" data-add="entry">+ condition</button>
+          </div>
+          <div>
+            <div class="rb-head"><b>Exit</b> when <select id="rb-exit-mode"><option value="any">ANY</option><option value="all">ALL</option></select> of:</div>
+            <div id="rb-exit"></div>
+            <button class="ghost" data-add="exit">+ condition</button>
+          </div>
+        </div>
+        <div class="rb-presets">Presets:
+          <button class="ghost" data-preset="golden">Golden cross</button>
+          <button class="ghost" data-preset="dip">Buy the dip in uptrend</button>
+          <button class="ghost" data-preset="breakout">Momentum breakout</button>
+        </div>
+      </div>
+      <div id="bt-kpis" class="kpis"></div>
+      <div class="card"><div id="bt-price" class="chart tall"></div></div>
+      <div class="grid2">
+        <div class="card"><div id="bt-equity" class="chart"></div></div>
+        <div class="card"><div id="bt-dd" class="chart"></div></div>
+      </div>
+      <div class="card">
+        <h3>Trade log</h3>
+        <div id="bt-trades" class="table-wrap"></div>
+      </div>
+    </section>
+
+    <!-- COMPARE -->
+    <section class="tab" id="tab-compare">
+      <div class="card controls">
+        <div id="cmp-list" class="checklist"></div>
+        <button class="primary" id="cmp-run">▶ Compare vs Buy &amp; Hold</button>
+      </div>
+      <p class="muted small">Every strategy uses its default parameters (the Backtest tab's parameters for the selected strategy), the same period and the same costs. The leaderboard is ranked by <b>Sharpe ratio</b> (risk-adjusted), not total profit.</p>
+      <div class="card"><h3>Leaderboard</h3><div id="cmp-table" class="table-wrap"></div></div>
+      <div class="card"><div id="cmp-equity" class="chart tall"></div></div>
+      <div class="grid2">
+        <div class="card"><div id="cmp-scatter" class="chart"></div></div>
+        <div class="card"><div id="cmp-dd" class="chart"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div id="cmp-yearly" class="chart"></div></div>
+        <div class="card"><div id="cmp-corr" class="chart"></div></div>
+      </div>
+    </section>
+
+    <!-- VALIDATION -->
+    <section class="tab" id="tab-validate">
+      <div class="card controls">
+        <label>Strategy <select id="val-strategy"></select></label>
+        <label>Train share <input type="number" id="val-ratio" value="0.6" min="0.3" max="0.85" step="0.05"></label>
+        <label>Optimise for <select id="val-objective">
+          <option value="sharpe">Sharpe</option><option value="total_return">Total return</option>
+          <option value="calmar">Calmar</option><option value="sortino">Sortino</option></select></label>
+        <button class="primary" id="val-run">▶ Optimise on train, test on unseen data</button>
+      </div>
+      <p class="muted small">The parameter grid is searched on the <b>training</b> period only. The best parameters are then frozen and run on the <b>test</b> period they have never seen. A big drop in performance means the strategy was fitted to noise.</p>
+      <div id="val-verdict"></div>
+      <div id="val-kpis" class="kpis"></div>
+      <div class="card"><div id="val-equity" class="chart"></div></div>
+      <div class="grid2">
+        <div class="card"><div id="val-scatter" class="chart"></div></div>
+        <div class="card"><div id="val-heat" class="chart"></div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div id="val-pbo" class="chart"></div></div>
+        <div class="card"><h3>Top in-sample parameter sets</h3><div id="val-top" class="table-wrap"></div></div>
+      </div>
+    </section>
+
+    <!-- WALK-FORWARD -->
+    <section class="tab" id="tab-walkforward">
+      <div class="card controls">
+        <label>Strategy <select id="wf-strategy"></select></label>
+        <label>Train window (days) <input type="number" id="wf-train" value="504" min="120" step="21"></label>
+        <label>Test window (days) <input type="number" id="wf-test" value="126" min="21" step="21"></label>
+        <label class="inline"><input type="checkbox" id="wf-anchored"> Anchored (expanding)</label>
+        <button class="primary" id="wf-run">▶ Run walk-forward</button>
+      </div>
+      <p class="muted small">Re-optimise on a rolling training window, trade the next test window with those frozen parameters, then roll forward. Only the out-of-sample segments are stitched together, which gives the most honest estimate of live performance.</p>
+      <div id="wf-kpis" class="kpis"></div>
+      <div class="card"><div id="wf-equity" class="chart"></div></div>
+      <div class="card"><div id="wf-bars" class="chart"></div></div>
+      <div class="card"><h3>Windows</h3><div id="wf-table" class="table-wrap"></div></div>
+    </section>
+
+    <!-- REGIMES -->
+    <section class="tab" id="tab-regimes">
+      <div class="card controls">
+        <label>Classifier <select id="rg-method">
+          <option value="rules">Rule-based (trend × volatility)</option>
+          <option value="gmm">ML: Gaussian Mixture (unsupervised)</option></select></label>
+        <div id="rg-list" class="checklist"></div>
+        <button class="primary" id="rg-run">▶ Analyse regimes</button>
+      </div>
+      <p class="muted small">Each day is labelled using trailing data only, and each return is attributed to the regime known at the previous close. This shows <i>when</i> a strategy works and when it breaks.</p>
+      <div class="card"><div id="rg-price" class="chart tall"></div></div>
+      <div class="grid2">
+        <div class="card"><div id="rg-bars" class="chart"></div></div>
+        <div class="card"><div id="rg-dist" class="chart"></div></div>
+      </div>
+      <div class="card"><h3>Performance by regime (annualised return % · Sharpe)</h3><div id="rg-table" class="table-wrap"></div></div>
+    </section>
+
+    <!-- ML -->
+    <section class="tab" id="tab-ml">
+      <div class="card controls">
+        <label>Model <select id="ml-model">
+          <option value="logistic">Logistic regression</option>
+          <option value="random_forest">Random forest</option>
+          <option value="gradient_boosting">Gradient boosting</option></select></label>
+        <label>P(up) entry threshold <input type="number" id="ml-threshold" value="0.52" min="0.5" max="0.7" step="0.01"></label>
+        <label>Train window <input type="number" id="ml-window" value="756" min="252" step="63"></label>
+        <label>Retrain every <input type="number" id="ml-retrain" value="63" min="21" step="21"></label>
+        <button class="primary" id="ml-run">▶ Train walk-forward model</button>
+      </div>
+      <p class="muted small">Predicts whether tomorrow closes higher using 12 technical features. The model is retrained on a rolling window, and every prediction comes from a model that never saw that day, so accuracy shown here is genuinely out of sample.</p>
+      <div id="ml-verdict"></div>
+      <div id="ml-kpis" class="kpis"></div>
+      <div class="grid2">
+        <div class="card"><div id="ml-imp" class="chart"></div></div>
+        <div class="card"><div id="ml-cal" class="chart"></div></div>
+      </div>
+      <div class="card"><div id="ml-proba" class="chart"></div></div>
+      <div class="card"><div id="ml-equity" class="chart"></div></div>
+    </section>
+
+    <!-- COSTS -->
+    <section class="tab" id="tab-costs">
+      <div class="card controls">
+        <div id="cs-list" class="checklist"></div>
+        <button class="primary" id="cs-run">▶ Sweep transaction costs</button>
+      </div>
+      <p class="muted small">Each strategy is re-run with the same signals at round-trip costs from 0 to 100 bps (commission + slippage). High-turnover strategies that look great before costs often lose their edge.</p>
+      <div class="grid2">
+        <div class="card"><div id="cs-return" class="chart"></div></div>
+        <div class="card"><div id="cs-sharpe" class="chart"></div></div>
+      </div>
+      <div class="card"><h3>Break-even analysis</h3><div id="cs-table" class="table-wrap"></div></div>
+    </section>
+
+    <!-- REPORT -->
+    <section class="tab" id="tab-report">
+      <div class="card controls">
+        <div id="rp-list" class="checklist"></div>
+        <label class="inline"><input type="checkbox" id="rp-val" checked> Include out-of-sample validation</label>
+        <button class="primary" id="rp-run">▶ Generate report</button>
+        <button class="ghost" id="rp-md">⬇ Download Markdown</button>
+        <button class="ghost" onclick="window.print()">🖨 Print / PDF</button>
+      </div>
+      <div id="rp-body" class="report"></div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="loader" class="loader hidden"><div class="spinner"></div><span id="loader-text">Running…</span></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
