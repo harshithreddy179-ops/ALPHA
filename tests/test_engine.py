@@ -140,3 +140,55 @@ def test_api_endpoints():
     assert c.post("/api/costs", json=body).status_code == 200
     assert c.post("/api/backtest", json={"dataset": "nope", "key": "rsi"}).status_code == 404
     assert c.post("/api/backtest", json={"dataset": "DELTA_INDEX", "key": "nope"}).status_code == 400
+
+
+# --- live market data ----------------------------------------------------------------
+
+def _chart_payload(n=120):
+    import time as _t
+    ts = [1_600_000_000 + i * 86400 for i in range(n)]
+    close = [100 + i for i in range(n)]
+    return {"chart": {"result": [{
+        "meta": {"gmtoffset": 19800},
+        "timestamp": ts,
+        "indicators": {
+            "quote": [{"open": close, "high": [c + 1 for c in close], "low": [c - 1 for c in close],
+                       "close": close, "volume": [1000] * n}],
+            "adjclose": [{"adjclose": [c / 2 for c in close]}],
+        }}], "error": None}}
+
+
+def test_parse_chart_adjusts_prices():
+    from alphatrial.market import parse_chart
+    df = parse_chart(_chart_payload())
+    assert len(df) == 120
+    assert df["Close"].iloc[0] == pytest.approx(50)      # adjusted by adjclose / close
+    assert df["Open"].iloc[0] == pytest.approx(50)
+
+
+def test_parse_chart_error():
+    from alphatrial.market import parse_chart
+    with pytest.raises(data.DataError):
+        parse_chart({"chart": {"result": None, "error": {"description": "No data found"}}})
+
+
+def test_symbol_helpers():
+    from alphatrial.market import normalise, to_symbol
+    assert normalise("reliance") == "RELIANCE.NS"
+    assert normalise("TCS", "BSE") == "TCS.BO"
+    assert normalise("^NSEI") == "^NSEI"
+    assert to_symbol("YF:M&M.NS") == "M&M.NS"
+    with pytest.raises(data.DataError):
+        to_symbol("YF:../../etc")
+
+
+def test_live_dataset_through_api(monkeypatch):
+    from alphatrial import market
+    monkeypatch.setattr(market, "_get", lambda url, timeout=15: _chart_payload(400))
+    market._MEM.clear()
+    c = TestClient(app)
+    r = c.post("/api/backtest", json={"dataset": "YF:TESTSYM.NS", "key": "sma_cross"})
+    assert r.status_code == 200
+    assert c.get("/api/universe").json()["nifty50"]
+    snap = c.get("/api/market?group=indices").json()["rows"]
+    assert all("close" in s for s in snap)

@@ -109,8 +109,9 @@ async function init() {
     window.dispatchEvent(new Event("resize"));
   }));
 
-  [state.strategies, state.datasets] = await Promise.all([api("/api/strategies"), api("/api/datasets")]);
-  renderDatasets();
+  [state.strategies, state.datasets, state.universe] = await Promise.all(
+    [api("/api/strategies"), api("/api/datasets"), api("/api/universe")]);
+  renderDatasets(DEFAULT_DATASET);
   strategyOptions($("#bt-strategy"), { includeCustom: true });
   strategyOptions($("#val-strategy"), { includeML: false });
   strategyOptions($("#wf-strategy"), { includeML: false });
@@ -123,6 +124,16 @@ async function init() {
 
   $("#bt-strategy").addEventListener("change", renderParams);
   $("#dataset").addEventListener("change", datasetChanged);
+  $("#exchange").addEventListener("change", () => {
+    const cur = $("#dataset").value;
+    const base = cur.startsWith("YF:") ? cur.slice(3).replace(/\.(NS|BO)$/, "") : null;
+    renderDatasets(base && !cur.includes("^") ? liveName(base) : cur);
+    datasetChanged();
+  });
+  $("#custom-load").addEventListener("click", loadCustom);
+  $("#custom-symbol").addEventListener("keydown", (e) => { if (e.key === "Enter") loadCustom(); });
+  $("#mk-run").addEventListener("click", runMarket);
+  $("#mk-group").addEventListener("change", runMarket);
   $("#upload").addEventListener("change", uploadCSV);
   $("#bt-run").addEventListener("click", runBacktest);
   $("#cmp-run").addEventListener("click", runCompare);
@@ -138,23 +149,105 @@ async function init() {
 
   renderParams();
   preset("dip");
-  datasetChanged();
+  const okData = await datasetChanged();
+  if (!okData) { renderDatasets("ALPHA_TECH"); await datasetChanged(); }
   runBacktest();
 }
 
+const DEFAULT_DATASET = "YF:^NSEI";
+const exchangeSuffix = () => ($("#exchange").value === "BSE" ? ".BO" : ".NS");
+const liveName = (sym) => "YF:" + (sym.startsWith("^") || /\.(NS|BO)$/.test(sym) ? sym : sym + exchangeSuffix());
+
 function renderDatasets(select) {
-  $("#dataset").innerHTML = state.datasets.map((d) =>
-    `<option value="${d.name}">${d.uploaded ? "⬆ " : ""}${d.name}</option>`).join("");
-  if (select) $("#dataset").value = select;
+  const u = state.universe || { indices: [], nifty50: [] };
+  const ex = $("#exchange").value;
+  const opt = (v, label) => `<option value="${esc(v)}">${esc(label)}</option>`;
+  const custom = state.customSymbols || [];
+  $("#dataset").innerHTML =
+    `<optgroup label="Indices (live)">${u.indices.map((i) => opt("YF:" + i.symbol, `${i.name} (${i.symbol})`)).join("")}</optgroup>`
+    + `<optgroup label="NIFTY 50 stocks · ${ex} (live)">${u.nifty50.map((s) => opt(liveName(s.symbol), `${s.symbol}: ${s.name}`)).join("")}</optgroup>`
+    + (custom.length ? `<optgroup label="Custom symbols (live)">${custom.map((c) => opt(c, c.slice(3))).join("")}</optgroup>` : "")
+    + `<optgroup label="Offline sample data">${state.datasets.filter((d) => !d.uploaded).map((d) => opt(d.name, d.name)).join("")}</optgroup>`
+    + (state.datasets.some((d) => d.uploaded) ? `<optgroup label="Uploaded">${state.datasets.filter((d) => d.uploaded).map((d) => opt(d.name, "⬆ " + d.name)).join("")}</optgroup>` : "");
+  if (select) {
+    if (![...$("#dataset").options].some((o) => o.value === select) && select.startsWith("YF:")) {
+      state.customSymbols = [...custom, select];
+      return renderDatasets(select);
+    }
+    $("#dataset").value = select;
+  }
 }
-function datasetChanged() {
-  const d = state.datasets.find((x) => x.name === $("#dataset").value);
-  if (!d) return;
-  $("#dataset-info").textContent = `${d.rows} bars · ${d.start} → ${d.end}`;
+async function datasetChanged() {
+  const name = $("#dataset").value;
   $("#start").value = ""; $("#end").value = "";
+  let d = state.datasets.find((x) => x.name === name);
+  if (!d) {
+    try {
+      d = await api("/api/info/" + encodeURIComponent(name), null, `Downloading ${name.slice(3)} price history…`);
+    } catch (e) {
+      $("#dataset-info").textContent = "Could not load this symbol.";
+      return false;
+    }
+  }
+  $("#dataset-info").textContent = `${d.rows} bars · ${d.start} → ${d.end}` + (d.last_close ? ` · last ${Number(d.last_close).toLocaleString("en-IN")}` : "");
   $("#start").min = $("#end").min = d.start;
   $("#start").max = $("#end").max = d.end;
+  return true;
 }
+async function loadCustom() {
+  const raw = $("#custom-symbol").value.trim().toUpperCase();
+  if (!raw) return;
+  renderDatasets(liveName(raw));
+  if (await datasetChanged()) { $("#custom-symbol").value = ""; runBacktest(); }
+}
+
+// ------------------------------------------------------------------ market
+async function runMarket() {
+  const group = $("#mk-group").value, ex = $("#exchange").value;
+  const d = await api(`/api/market?group=${group}&exchange=${ex}`, null, "Fetching live market data…");
+  const rows = d.rows.filter((r) => !r.error);
+  const failed = d.rows.filter((r) => r.error);
+  $("#mk-title").textContent = `${group === "indices" ? "Indian indices" : "NIFTY 50 · " + ex} (${rows.length} loaded${failed.length ? `, ${failed.length} unavailable` : ""})`;
+  const spark = (v) => {
+    if (!v || v.length < 2) return "";
+    const mn = Math.min(...v), mx = Math.max(...v), w = 90, h = 24;
+    const pts = v.map((x, i) => `${(i / (v.length - 1) * w).toFixed(1)},${(h - (x - mn) / ((mx - mn) || 1) * h).toFixed(1)}`).join(" ");
+    return `<svg class="spark" width="${w}" height="${h}"><polyline fill="none" stroke="${v[v.length - 1] >= v[0] ? "#34d399" : "#f87171"}" stroke-width="1.5" points="${pts}"/></svg>`;
+  };
+  const pct = (v) => fmt(v, 2, "%");
+  $("#mk-table").innerHTML = table([
+    { label: "Symbol", key: "symbol" }, { label: "Name", key: "name", left: true }, { label: "Sector", key: "sector", left: true },
+    { label: "Last", key: "close", fmt: (v) => Number(v).toLocaleString("en-IN") },
+    { label: "1D", key: "chg_1d", fmt: pct, color: true }, { label: "1W", key: "chg_1w", fmt: pct, color: true },
+    { label: "1M", key: "chg_1m", fmt: pct, color: true }, { label: "3M", key: "chg_3m", fmt: pct, color: true },
+    { label: "1Y", key: "chg_1y", fmt: pct, color: true }, { label: "Vol 1Y", key: "vol_1y", fmt: pct },
+    { label: "52W range", get: (r) => `${Number(r.low_52w).toLocaleString("en-IN")} – ${Number(r.high_52w).toLocaleString("en-IN")}` },
+    { label: "60D", key: "spark", fmt: spark },
+    { label: "As of", key: "date" },
+  ], rows, { rowClass: () => "clickable" })
+    + (failed.length ? `<p class="muted small">Unavailable: ${failed.map((f) => esc(f.symbol)).join(", ")}</p>` : "");
+  $$("#mk-table tbody tr").forEach((tr, i) => tr.addEventListener("click", () => {
+    renderDatasets("YF:" + rows[i].symbol);
+    $$("#tabs button").find((b) => b.dataset.tab === "backtest").click();
+    datasetChanged().then((ok) => ok && runBacktest());
+  }));
+  const sorted = [...rows].sort((a, b) => (b.chg_1m ?? 0) - (a.chg_1m ?? 0));
+  const movers = sorted.length > 16 ? [...sorted.slice(0, 8), ...sorted.slice(-8)] : sorted;
+  plot("mk-movers", [{ type: "bar", orientation: "h", y: movers.map((r) => r.symbol.replace(/\.(NS|BO)$/, "")).reverse(),
+    x: movers.map((r) => r.chg_1m).reverse(), marker: { color: movers.map((r) => r.chg_1m >= 0 ? "#34d399" : "#f87171").reverse() } }],
+    { title: { text: "1-month return %: top & bottom movers", font: { size: 13 } }, hovermode: "closest", margin: { l: 95 } });
+  const bySector = {};
+  rows.forEach((r) => { (bySector[r.sector] = bySector[r.sector] || []).push(r.chg_1y); });
+  const sec = Object.entries(bySector).map(([k, v]) => [k, v.reduce((a, b) => a + b, 0) / v.length]).sort((a, b) => b[1] - a[1]);
+  plot("mk-sector", [{ type: "bar", x: sec.map((s) => s[0]), y: sec.map((s) => s[1]),
+    marker: { color: sec.map((s) => s[1] >= 0 ? "#34d399" : "#f87171") } }],
+    { title: { text: group === "indices" ? "1-year return % by index" : "Average 1-year return % by sector", font: { size: 13 } },
+      hovermode: "closest", margin: { b: 110 } });
+  if (group === "indices") plot("mk-sector", [{ type: "bar", x: rows.map((r) => r.name), y: rows.map((r) => r.chg_1y),
+    marker: { color: rows.map((r) => r.chg_1y >= 0 ? "#34d399" : "#f87171") } }],
+    { title: { text: "1-year return % by index", font: { size: 13 } }, hovermode: "closest", margin: { b: 110 } });
+}
+
 async function uploadCSV(e) {
   const f = e.target.files[0];
   if (!f) return;
@@ -167,7 +260,7 @@ async function uploadCSV(e) {
     if (!r.ok) throw new Error(j.detail);
     state.datasets = await (await fetch("/api/datasets")).json();
     renderDatasets(j.name);
-    datasetChanged();
+    await datasetChanged();
     toast(`Loaded ${j.name}: ${j.rows} rows`, true);
   } catch (err) {
     toast("Upload failed: " + err.message);
@@ -287,7 +380,7 @@ async function runBacktest() {
     kpi("Win rate", fmt(m.win_rate, 1, "%"), `${m.num_trades} trades`),
     kpi("Profit factor", fmt(m.profit_factor), `avg trade ${fmt(m.avg_trade_pct, 2, "%")}`),
     kpi("Exposure", fmt(m.exposure, 0, "%"), `${fmt(m.trades_per_year, 1)} trades / yr`),
-    kpi("Costs paid", "$" + Number(m.costs_paid).toLocaleString(), `${fmt(m.costs_pct_of_capital, 2, "%")} of capital`),
+    kpi("Costs paid", "₹" + Number(m.costs_paid).toLocaleString("en-IN"), `${fmt(m.costs_pct_of_capital, 2, "%")} of capital`),
     kpi("Cost drag", fmt(g.total_return - m.total_return, 1, " pp"), `gross ${fmt(g.total_return, 1, "%")}`, "neg"),
   ].join("");
 
@@ -373,7 +466,7 @@ async function runCompare() {
     { label: "Win %", key: "win_rate", fmt: (v) => fmt(v, 0) },
     { label: "Trades", key: "num_trades" },
     { label: "Exposure %", key: "exposure", fmt: (v) => fmt(v, 0) },
-    { label: "Costs $", key: "costs_paid", fmt: (v) => Number(v).toLocaleString() },
+    { label: "Costs ₹", key: "costs_paid", fmt: (v) => Number(v).toLocaleString("en-IN") },
   ], d.leaderboard, { rowClass: (r) => r.name === "Buy & Hold" ? "bench" : r.rank === 1 ? "highlight" : "" });
 
   const names = Object.keys(d.series);

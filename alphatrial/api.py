@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import math
+import os
 import re
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -17,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from . import data as data_mod
 from . import indicators as ind
+from . import market
 from .analysis import build_report, compare, cost_sensitivity, report_markdown
 from .backtester import CostModel, buy_and_hold, run_backtest, slice_period
 from .ml import ml_report
@@ -26,7 +29,9 @@ from .validation import optimize, train_test, walk_forward
 
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
-UPLOAD_DIR = data_mod.DATA_DIR / "uploads"
+# Serverless platforms (Vercel) only allow writes under /tmp.
+UPLOAD_DIR = (Path(tempfile.gettempdir()) / "alphatrial_uploads" if os.environ.get("VERCEL")
+              else data_mod.DATA_DIR / "uploads")
 
 app = FastAPI(title="AlphaTrial", version="1.0.0",
               description="Build, backtest & validate rule-based trading strategies.")
@@ -66,6 +71,8 @@ def _load(name: str) -> pd.DataFrame:
 
 def load(name: str) -> pd.DataFrame:
     try:
+        if market.is_live(name):
+            return market.fetch(name)  # has its own time-based cache
         return _load(name)
     except data_mod.DataError as e:
         raise HTTPException(404, str(e))
@@ -164,6 +171,34 @@ def datasets():
         out.append({"name": n, "rows": len(df), "start": df.index[0].strftime("%Y-%m-%d"),
                     "end": df.index[-1].strftime("%Y-%m-%d"), "uploaded": n in uploads})
     return ok(out)
+
+
+@app.get("/api/universe")
+def universe():
+    return ok(market.universe())
+
+
+@app.get("/api/info/{name}")
+def info(name: str):
+    df = load(name)
+    return ok({"name": name, "rows": len(df), "start": df.index[0], "end": df.index[-1],
+               "last_close": round(float(df["Close"].iloc[-1]), 2)})
+
+
+@app.get("/api/market")
+def market_snapshot(group: str = "nifty50", exchange: str = "NSE"):
+    u = market.universe()
+    if group == "indices":
+        items = u["indices"]
+        syms = [i["symbol"] for i in items]
+    else:
+        items = u["nifty50"]
+        syms = [market.normalise(i["symbol"], exchange) for i in items]
+    rows = market.snapshot(syms)
+    for row, item in zip(rows, items):
+        row["name"] = item["name"]
+        row["sector"] = item.get("sector", "Index")
+    return ok({"group": group, "exchange": exchange, "rows": rows})
 
 
 @app.post("/api/upload")

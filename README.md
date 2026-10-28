@@ -12,9 +12,20 @@ python -m uvicorn alphatrial.api:app --port 8000
 # open http://localhost:8000
 ```
 
-No internet needed: four sample datasets ship in `data/`, and Plotly is vendored.
-Run `python scripts/fetch_data.py AAPL RELIANCE.NS ^NSEI` on a connected machine to pull real data,
-or upload any CSV from the dashboard.
+### Live Indian market data
+Pick any **NIFTY 50 stock** (on **NSE** or **BSE**), an index (**NIFTY 50, SENSEX, BANK NIFTY, NIFTY IT,
+NEXT 50, AUTO, PHARMA, FMCG**), or type any NSE/BSE symbol (e.g. `IRCTC`). Ten years of daily,
+split- and dividend-adjusted prices are downloaded from Yahoo Finance's public chart endpoint (no
+API key needed) and cached for 6 hours. The **Market** tab shows the NIFTY 50 with 1D/1W/1M/3M/1Y
+returns, volatility, 52-week range and sparklines; click a row to backtest it.
+
+Offline? Four synthetic sample datasets ship in `data/`, Plotly is vendored, and you can upload any CSV.
+If live data is unreachable (e.g. a firewall), the app falls back to the sample data automatically.
+
+### Deploy to Vercel
+The repo is Vercel-ready: `index.py` exposes the FastAPI app and `vercel.json` sets a 60 s function
+timeout. Import the GitHub repo at https://vercel.com/new (framework preset: **FastAPI**, no build
+settings needed) and deploy. Uploaded CSVs live in `/tmp` on Vercel, so they're temporary.
 
 ## How it works
 
@@ -70,6 +81,7 @@ Interactive docs are at `/docs`.
 
 ## Tests
 ```
+pip install -r requirements-dev.txt
 python -m pytest -q
 ```
 

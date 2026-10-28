@@ -173,3 +173,10 @@ tr.bench td { color: var(--muted); font-style: italic; }
   .layout { display: block; }
   body, .card { background: white; color: black; }
 }
+
+.custom-sym { display: flex; gap: 6px; margin-bottom: 10px; }
+.custom-sym button { padding: 6px 10px; }
+.tall-table { max-height: 720px; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: rgba(167, 139, 250, .08); }
+.spark { display: block; }

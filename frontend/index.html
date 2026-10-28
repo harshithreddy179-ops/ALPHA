@@ -17,6 +17,7 @@
     </div>
   </div>
   <nav id="tabs">
+    <button data-tab="market">Market</button>
     <button data-tab="backtest" class="active">Backtest</button>
     <button data-tab="compare">Compare</button>
     <button data-tab="validate">Validation Lab</button>
@@ -32,9 +33,16 @@
   <aside class="sidebar">
     <section>
       <h3>Data</h3>
-      <label>Dataset
+      <label>Exchange
+        <select id="exchange"><option value="NSE">NSE (.NS)</option><option value="BSE">BSE (.BO)</option></select>
+      </label>
+      <label>Stock / index
         <select id="dataset"></select>
       </label>
+      <div class="custom-sym">
+        <input id="custom-symbol" placeholder="Any symbol, e.g. IRCTC, ZYDUSLIFE">
+        <button class="ghost" id="custom-load">Load</button>
+      </div>
       <div id="dataset-info" class="muted small"></div>
       <label class="upload">
         <input type="file" id="upload" accept=".csv">
@@ -67,6 +75,22 @@
   </aside>
 
   <main>
+    <!-- MARKET -->
+    <section class="tab" id="tab-market">
+      <div class="card controls">
+        <label>Universe <select id="mk-group">
+          <option value="nifty50">NIFTY 50 constituents</option>
+          <option value="indices">Indian indices (NIFTY, SENSEX, sectoral)</option></select></label>
+        <button class="primary" id="mk-run">⟳ Load live market data</button>
+        <span class="muted small">Daily data from Yahoo Finance (end-of-day, may lag by a session). Click any row to backtest it.</span>
+      </div>
+      <div class="grid2">
+        <div class="card"><div id="mk-movers" class="chart"></div></div>
+        <div class="card"><div id="mk-sector" class="chart"></div></div>
+      </div>
+      <div class="card"><h3 id="mk-title">Market snapshot</h3><div id="mk-table" class="table-wrap tall-table"></div></div>
+    </section>
+
     <!-- BACKTEST -->
     <section class="tab active" id="tab-backtest">
       <div class="card controls">
