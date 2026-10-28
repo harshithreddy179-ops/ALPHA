@@ -207,3 +207,25 @@ def test_download_falls_back_when_range_ignored(monkeypatch):
     df = market._download("RELIANCE.BO", "10y")
     assert len(df) == 400
     assert any("period1=" in u for u in calls)
+
+
+def test_short_bse_history_is_filled_from_nse(monkeypatch):
+    from alphatrial import market
+
+    def fake_get(url, timeout=15):
+        if ".BO" in url:
+            p = _chart_payload(400)
+            r = p["chart"]["result"][0]
+            r["timestamp"] = r["timestamp"][-80:]
+            for k in ("open", "high", "low", "close", "volume"):
+                r["indicators"]["quote"][0][k] = r["indicators"]["quote"][0][k][-80:]
+            r["indicators"]["adjclose"][0]["adjclose"] = r["indicators"]["adjclose"][0]["adjclose"][-80:]
+            return p
+        return _chart_payload(400)
+
+    monkeypatch.setattr(market, "_get", fake_get)
+    monkeypatch.setattr(market, "_CACHE_DIR", __import__("pathlib").Path("/nonexistent/x"))
+    market._MEM.clear()
+    df = market.fetch("YF:FOO.BO")
+    assert len(df) == 400 and "NSE" in df.attrs["note"]
+    assert df.index.is_unique and df.index.is_monotonic_increasing

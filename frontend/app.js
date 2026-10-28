@@ -189,7 +189,8 @@ async function datasetChanged() {
       return false;
     }
   }
-  $("#dataset-info").textContent = `${d.rows} bars · ${d.start} → ${d.end}` + (d.last_close ? ` · last ${Number(d.last_close).toLocaleString("en-IN")}` : "");
+  $("#dataset-info").textContent = `${d.rows} bars · ${d.start} → ${d.end}` + (d.last_close ? ` · last ${Number(d.last_close).toLocaleString("en-IN")}` : "")
+    + (d.note ? ` · ⓘ ${d.note}` : "");
   $("#start").min = $("#end").min = d.start;
   $("#start").max = $("#end").max = d.end;
   return true;

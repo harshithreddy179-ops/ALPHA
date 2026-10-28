@@ -182,7 +182,8 @@ def universe():
 def info(name: str):
     df = load(name)
     return ok({"name": name, "rows": len(df), "start": df.index[0], "end": df.index[-1],
-               "last_close": round(float(df["Close"].iloc[-1]), 2)})
+               "last_close": round(float(df["Close"].iloc[-1]), 2),
+               "note": df.attrs.get("note")})
 
 
 @app.get("/api/market")

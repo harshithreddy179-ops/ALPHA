@@ -203,7 +203,25 @@ def _download(symbol: str, rng: str) -> pd.DataFrame:
 
 
 def fetch(symbol: str, rng: str = "10y") -> pd.DataFrame:
+    """Daily history for `symbol`. Yahoo keeps only a few months of BSE history for some
+    stocks; in that case the older part is filled from the same company's NSE listing
+    (the two venues trade within arbitrage bands) and `df.attrs['note']` says so."""
     symbol = to_symbol(symbol)
+    df = _fetch_cached(symbol, rng)
+    if symbol.endswith(".BO") and len(df) < _years(rng) * 240 * 0.8:
+        try:
+            nse = _fetch_cached(symbol[:-3] + ".NS", rng)
+        except DataError:
+            return df
+        older = nse[nse.index < df.index[0]]
+        if len(older):
+            df = pd.concat([older, df])
+            df.attrs["note"] = (f"BSE history on Yahoo starts {df.index[len(older)].date()}; "
+                                f"earlier prices come from {symbol[:-3]}.NS (NSE).")
+    return df
+
+
+def _fetch_cached(symbol: str, rng: str) -> pd.DataFrame:
     key = f"{symbol}|{rng}"
     now = time.time()
     hit = _MEM.get(key)
