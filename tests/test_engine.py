@@ -192,3 +192,18 @@ def test_live_dataset_through_api(monkeypatch):
     assert c.get("/api/universe").json()["nifty50"]
     snap = c.get("/api/market?group=indices").json()["rows"]
     assert all("close" in s for s in snap)
+
+
+def test_download_falls_back_when_range_ignored(monkeypatch):
+    """BSE feeds can ignore range=10y and return one bar; the period1/period2 retry fixes it."""
+    from alphatrial import market
+    calls = []
+
+    def fake_get(url, timeout=15):
+        calls.append(url)
+        return _chart_payload(1 if "range=10y" in url else 400)
+
+    monkeypatch.setattr(market, "_get", fake_get)
+    df = market._download("RELIANCE.BO", "10y")
+    assert len(df) == 400
+    assert any("period1=" in u for u in calls)

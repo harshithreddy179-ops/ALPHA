@@ -154,8 +154,8 @@ def _get(url: str, timeout: float = 15) -> dict:
         return json.loads(r.read().decode())
 
 
-def _download(symbol: str, rng: str) -> pd.DataFrame:
-    path = (f"/v8/finance/chart/{urllib.parse.quote(symbol)}?range={rng}&interval=1d"
+def _query(symbol: str, params: str) -> pd.DataFrame:
+    path = (f"/v8/finance/chart/{urllib.parse.quote(symbol)}?{params}&interval=1d"
             "&includeAdjustedClose=true&events=div%2Csplits")
     last = None
     for host in _HOSTS:
@@ -165,15 +165,41 @@ def _download(symbol: str, rng: str) -> pd.DataFrame:
             raise
         except urllib.error.HTTPError as e:
             if e.code == 404:
-                try:
-                    parse_chart(json.loads(e.read().decode()))
-                except DataError as de:
-                    raise DataError(f"{symbol}: {de}")
                 raise DataError(f"{symbol}: symbol not found")
             last = e
         except Exception as e:  # network problems: try the next host
             last = e
-    raise DataError(f"Could not download {symbol} from Yahoo Finance ({last})")
+    raise ConnectionError(f"Could not download {symbol} from Yahoo Finance ({last})")
+
+
+def _years(rng: str) -> int:
+    m = re.fullmatch(r"(\d+)y", rng)
+    return int(m.group(1)) if m else 10
+
+
+def _download(symbol: str, rng: str) -> pd.DataFrame:
+    """Some feeds (notably BSE '.BO' symbols) ignore `range` and return a single bar, so
+    fall back to explicit period1/period2 timestamps and finally to the full history."""
+    now = int(time.time())
+    years = _years(rng)
+    attempts = [f"range={rng}",
+                f"period1={now - years * 366 * 86400}&period2={now}",
+                "range=max"]
+    errors = []
+    for params in attempts:
+        try:
+            df = _query(symbol, params)
+        except ConnectionError as e:
+            raise DataError(str(e))
+        except DataError as e:
+            if "not found" in str(e).lower():
+                raise
+            errors.append(str(e))
+            continue
+        cutoff = df.index[-1] - pd.DateOffset(years=years)
+        trimmed = df[df.index >= cutoff]
+        return trimmed if len(trimmed) >= 60 else df
+    raise DataError(f"{symbol}: {errors[-1] if errors else 'no data'}")
 
 
 def fetch(symbol: str, rng: str = "10y") -> pd.DataFrame:
