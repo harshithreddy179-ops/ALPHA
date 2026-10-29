@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, precision_score, roc_auc_score
 from sklearn.pipeline import make_pipeline
@@ -49,9 +49,6 @@ def _model(kind: str):
     if kind == "random_forest":
         return RandomForestClassifier(n_estimators=100, max_depth=4, min_samples_leaf=20,
                                       random_state=0, n_jobs=1)
-    if kind == "gradient_boosting":
-        return GradientBoostingClassifier(n_estimators=100, max_depth=2, learning_rate=0.05,
-                                          subsample=0.8, random_state=0)
     return make_pipeline(StandardScaler(), LogisticRegression(C=0.5, max_iter=500))
 
 
@@ -128,7 +125,7 @@ def ml_signals(df, model="logistic", threshold=0.52, train_window=756, retrain_e
 
 ML_STRATEGY = Strategy(
     "ml", "ML Direction Model",
-    "Walk-forward classifier (logistic / random forest / gradient boosting) that predicts "
+    "Walk-forward classifier (logistic regression or random forest) that predicts "
     "next-day direction from technical features; goes long when P(up) > threshold.",
     [Param("model", "logistic", ["logistic", "random_forest"], "Model", "choice"),
      Param("threshold", 0.52, [0.50, 0.52, 0.55], "P(up) threshold", "float"),
@@ -156,9 +153,4 @@ def ml_report(df: pd.DataFrame, model: str = "logistic", threshold: float = 0.52
         "dates": [d.strftime("%Y-%m-%d") for d in proba.index],
         "proba": [None if np.isnan(v) else round(float(v), 4) for v in proba.to_numpy()],
     }
-    # Calibration: hit rate by confidence bucket.
-    buckets = pd.cut(p, [0, 0.45, 0.48, 0.5, 0.52, 0.55, 1.0])
-    cal = pd.DataFrame({"b": buckets, "y": yt}).groupby("b", observed=True)["y"].agg(["mean", "count"])
-    out["calibration"] = [{"bucket": str(k), "hit_rate": round(float(v["mean"]) * 100, 2),
-                           "count": int(v["count"])} for k, v in cal.iterrows()]
     return out

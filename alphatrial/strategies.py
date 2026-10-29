@@ -87,11 +87,6 @@ def sma_crossover(df, fast=20, slow=50):
     return (f > s).astype(float).where(s.notna(), 0.0)
 
 
-def ema_crossover(df, fast=12, slow=26):
-    f, s = ind.ema(df["Close"], fast), ind.ema(df["Close"], slow)
-    return (f > s).astype(float).where(s.notna(), 0.0)
-
-
 def rsi_reversion(df, period=14, oversold=30, overbought=70):
     r = ind.rsi(df["Close"], period)
     return _stateful(r < oversold, r > overbought)
@@ -100,19 +95,6 @@ def rsi_reversion(df, period=14, oversold=30, overbought=70):
 def momentum_strategy(df, lookback=60, threshold=0.0):
     m = ind.momentum(df["Close"], lookback)
     return (m > threshold).astype(float).where(m.notna(), 0.0)
-
-
-def bollinger_reversion(df, period=20, k=2.0):
-    lo, mid, _ = ind.bollinger(df["Close"], period, k)
-    return _stateful(df["Close"] < lo, df["Close"] > mid)
-
-
-def trend_rsi(df, trend=200, period=14, oversold=35, overbought=75):
-    """Buy RSI dips only while the long-term trend is up."""
-    t = ind.sma(df["Close"], trend)
-    r = ind.rsi(df["Close"], period)
-    up = df["Close"] > t
-    return _stateful(up & (r < oversold), (r > overbought) | ~up)
 
 
 STRATEGIES: dict[str, Strategy] = {}
@@ -131,13 +113,6 @@ register(Strategy(
     sma_crossover, constraint=lambda p: p["fast"] < p["slow"]))
 
 register(Strategy(
-    "ema_cross", "EMA Crossover",
-    "Long when the fast exponential moving average is above the slow one.",
-    [Param("fast", 12, [5, 8, 12, 20], "Fast EMA"),
-     Param("slow", 26, [26, 50, 100], "Slow EMA")],
-    ema_crossover, constraint=lambda p: p["fast"] < p["slow"]))
-
-register(Strategy(
     "rsi", "RSI Mean Reversion",
     "Buy when RSI drops below the oversold level, sell when it rises above overbought.",
     [Param("period", 14, [7, 14, 21], "RSI period"),
@@ -151,23 +126,6 @@ register(Strategy(
     [Param("lookback", 60, [20, 40, 60, 90, 120, 180, 250], "Lookback (days)"),
      Param("threshold", 0.0, [0.0, 0.02, 0.05], "Threshold", "float")],
     momentum_strategy))
-
-register(Strategy(
-    "bollinger", "Bollinger Reversion",
-    "Buy a close below the lower band, exit when price recovers to the middle band.",
-    [Param("period", 20, [10, 20, 30, 40], "Period"),
-     Param("k", 2.0, [1.5, 2.0, 2.5], "Band width (σ)", "float")],
-    bollinger_reversion))
-
-register(Strategy(
-    "trend_rsi", "Trend-Filtered RSI",
-    "RSI dip-buying only while price is above its long-term SMA.",
-    [Param("trend", 200, [100, 150, 200], "Trend SMA"),
-     Param("period", 14, [7, 14], "RSI period"),
-     Param("oversold", 35, [30, 35, 40, 45], "Oversold"),
-     Param("overbought", 75, [65, 70, 75, 80], "Overbought")],
-    trend_rsi, constraint=lambda p: p["oversold"] < p["overbought"]))
-
 
 # --- user-designed rule strategies ---------------------------------------------------
 

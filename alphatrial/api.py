@@ -23,7 +23,7 @@ from . import market
 from .analysis import build_report, compare, cost_sensitivity, report_markdown
 from .backtester import CostModel, buy_and_hold, run_backtest, slice_period
 from .ml import ml_report
-from .regimes import classify_gmm, classify_rule_based, regime_performance
+from .regimes import classify_rule_based, regime_performance
 from .strategies import all_strategies, get
 from .validation import optimize, train_test, walk_forward
 
@@ -127,7 +127,6 @@ class WalkForwardReq(Base):
 
 class RegimeReq(Base):
     strategies: list[StrategySpec] = []
-    method: str = "rules"
 
 
 class MLReq(Base):
@@ -235,15 +234,6 @@ def _overlays(key: str, params: dict, df: pd.DataFrame) -> dict:
     lines, panel = {}, None
     if key == "sma_cross":
         lines = {f"SMA {params['fast']}": ind.sma(c, params["fast"]), f"SMA {params['slow']}": ind.sma(c, params["slow"])}
-    elif key == "ema_cross":
-        lines = {f"EMA {params['fast']}": ind.ema(c, params["fast"]), f"EMA {params['slow']}": ind.ema(c, params["slow"])}
-    elif key == "bollinger":
-        lo, mid, hi = ind.bollinger(c, params["period"], params["k"])
-        lines = {"BB lower": lo, "BB mid": mid, "BB upper": hi}
-    elif key == "trend_rsi":
-        lines = {f"SMA {params['trend']}": ind.sma(c, params["trend"])}
-        panel = {"name": f"RSI {params['period']}", "values": ind.rsi(c, params["period"]),
-                 "levels": [params["oversold"], params["overbought"]]}
     elif key == "rsi":
         panel = {"name": f"RSI {params['period']}", "values": ind.rsi(c, params["period"]),
                  "levels": [params["oversold"], params["overbought"]]}
@@ -327,10 +317,7 @@ def walkforward_ep(req: WalkForwardReq):
 def regimes_ep(req: RegimeReq):
     df = load(req.dataset)
     window = slice_period(df, req.start, req.end)
-    if req.method == "gmm":
-        labels = classify_gmm(df).reindex(window.index)
-    else:
-        labels = classify_rule_based(df)["regime"].reindex(window.index)
+    labels = classify_rule_based(df)["regime"].reindex(window.index)
     rets = {}
     for s in req.strategies:
         strat = _guard(get, s.key, s.rules)

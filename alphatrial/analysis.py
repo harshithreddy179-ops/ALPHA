@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from .backtester import BacktestResult, CostModel, buy_and_hold, run_backtest
@@ -35,11 +34,9 @@ def compare(df: pd.DataFrame, specs: list[dict], start=None, end=None,
 
     rets = {k: v.returns for k, v in results.items()}
     labels = classify_rule_based(df)["regime"]
-    corr = pd.DataFrame(rets).corr().round(3)
     return {
         "leaderboard": leaderboard,
         "series": {k: v.to_dict() for k, v in results.items()},
-        "correlation": {"names": list(corr.columns), "matrix": corr.fillna(0).values.tolist()},
         "regimes": regime_performance(rets, labels),
         "yearly": yearly_returns(rets),
         "_results": results,
@@ -142,9 +139,6 @@ def strengths_weaknesses(name: str, m: dict, bh: dict, regimes: list[dict] | Non
             s.append(f"Held up out of sample (Sharpe decay {validation.get('sharpe_decay_pct')}%).")
         elif v in ("Overfit", "Degraded", "No Edge"):
             w.append(f"Out-of-sample verdict: {v} (Sharpe decay {validation.get('sharpe_decay_pct')}%).")
-        if validation.get("pbo") is not None and validation["pbo"] > 50:
-            w.append(f"High probability of backtest overfitting (PBO {validation['pbo']}%): the best "
-                     "in-sample parameters usually rank below median on unseen data.")
     return {"strengths": s, "weaknesses": w}
 
 
@@ -167,11 +161,9 @@ def build_report(df: pd.DataFrame, specs: list[dict], dataset: str, start=None, 
         if include_validation and strat.params and strat.key != "ml":
             try:
                 tt = train_test(df, strat, costs=costs, capital=capital)
-                val = {k: tt[k] for k in ("verdict", "sharpe_decay_pct", "best_params",
-                                          "rank_correlation")}
+                val = {k: tt[k] for k in ("verdict", "sharpe_decay_pct", "best_params")}
                 val["is_sharpe"] = tt["in_sample"]["metrics"]["sharpe"]
                 val["oos_sharpe"] = tt["out_of_sample"]["metrics"]["sharpe"]
-                val["pbo"] = tt["pbo"]["pbo"] if tt["pbo"] else None
             except Exception as e:  # pragma: no cover - report should still render
                 val = {"verdict": "n/a", "error": str(e)}
         sw = strengths_weaknesses(name, m, bh, cmp["regimes"], cost_by_name.get(name), val)
@@ -213,7 +205,6 @@ METHODOLOGY = [
     "Strategies are ranked by Sharpe ratio (risk-adjusted), not by raw profit.",
     "Parameters are optimised on the training period only and then frozen for the test period.",
     "Walk-forward analysis re-optimises on a rolling window and stitches only out-of-sample segments.",
-    "PBO (Probability of Backtest Overfitting) uses combinatorially symmetric cross-validation over the parameter grid.",
     "Regimes are labelled with trailing information only; returns are attributed to the regime known at the prior close.",
 ]
 
@@ -236,7 +227,7 @@ def report_markdown(rep: dict) -> str:
         if s["validation"] and "is_sharpe" in s["validation"]:
             v = s["validation"]
             L.append(f"Out-of-sample check: **{v['verdict']}**. In-sample Sharpe {v['is_sharpe']:.2f} → "
-                     f"out-of-sample {v['oos_sharpe']:.2f}" + (f", PBO {v['pbo']}%" if v.get("pbo") is not None else "") + ".")
+                     f"out-of-sample {v['oos_sharpe']:.2f}.")
             L.append("")
         if s["cost"]:
             be = s["cost"]["break_even_bps"]

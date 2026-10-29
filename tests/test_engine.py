@@ -8,7 +8,7 @@ from alphatrial.api import app
 from alphatrial.backtester import CostModel, buy_and_hold, run_backtest, simulate
 from alphatrial.metrics import max_drawdown, sharpe
 from alphatrial.ml import walk_forward_predict
-from alphatrial.validation import pbo, train_test, walk_forward
+from alphatrial.validation import train_test, walk_forward
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +64,7 @@ def test_cash_never_negative_and_whole_shares(df):
 
 
 def test_costs_reduce_returns(df):
-    strat = S.get("ema_cross")
+    strat = S.get("sma_cross")
     free = run_backtest(df, strat, costs=CostModel(0, 0, 0)).metrics["total_return"]
     costly = run_backtest(df, strat, costs=CostModel(25, 25, 0)).metrics["total_return"]
     assert costly < free
@@ -108,12 +108,6 @@ def test_train_test_and_walk_forward(df):
         assert w["test"][0] > w["train"][1]
 
 
-def test_pbo_detects_pure_noise():
-    rng = np.random.default_rng(0)
-    noise = pd.DataFrame(rng.normal(0, 0.01, (1000, 30)))
-    assert 25 <= pbo(noise)["pbo"] <= 75   # no real skill → about a coin flip
-
-
 def test_custom_rules(df):
     rules = {"entry": [{"left": {"type": "sma", "n": 20}, "op": ">", "right": {"type": "sma", "n": 50}}]}
     a = run_backtest(df, S.get("custom", rules)).metrics
@@ -145,7 +139,6 @@ def test_api_endpoints():
 # --- live market data ----------------------------------------------------------------
 
 def _chart_payload(n=120):
-    import time as _t
     ts = [1_600_000_000 + i * 86400 for i in range(n)]
     close = [100 + i for i in range(n)]
     return {"chart": {"result": [{

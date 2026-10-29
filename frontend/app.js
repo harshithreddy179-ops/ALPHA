@@ -117,10 +117,10 @@ async function init() {
   strategyOptions($("#wf-strategy"), { includeML: false });
   $("#val-strategy").value = "sma_cross";
   $("#wf-strategy").value = "sma_cross";
-  checklist($("#cmp-list"), ["sma_cross", "rsi", "momentum", "trend_rsi", "ml"]);
+  checklist($("#cmp-list"), ["sma_cross", "rsi", "momentum", "ml"]);
   checklist($("#rg-list"), ["sma_cross", "rsi", "momentum"]);
-  checklist($("#cs-list"), ["sma_cross", "ema_cross", "rsi", "momentum", "bollinger"]);
-  checklist($("#rp-list"), ["sma_cross", "rsi", "momentum", "trend_rsi", "ml"]);
+  checklist($("#cs-list"), ["sma_cross", "rsi", "momentum"]);
+  checklist($("#rp-list"), ["sma_cross", "rsi", "momentum", "ml"]);
 
   $("#bt-strategy").addEventListener("change", renderParams);
   $("#dataset").addEventListener("change", datasetChanged);
@@ -481,13 +481,6 @@ async function runCompare() {
     x: d.series[n].dates, y: d.series[n].drawdown, name: n, line: { color: color(n, i), width: 1 },
   })), { title: { text: "Drawdowns (%)", font: { size: 13 } } });
 
-  plot("cmp-scatter", d.leaderboard.map((r, i) => ({
-    x: [r.volatility], y: [r.cagr], name: r.name, mode: "markers+text", text: [r.name], textposition: "top center",
-    marker: { size: 10 + Math.max(0, r.sharpe) * 18, color: r.name === "Buy & Hold" ? BH_COLOR : COLORS[i % COLORS.length], opacity: .85 },
-    hovertemplate: `${r.name}<br>Vol %{x:.1f}%<br>CAGR %{y:.1f}%<br>Sharpe ${fmt(r.sharpe)}<extra></extra>`,
-  })), { title: { text: "Risk vs return (bubble = Sharpe)", font: { size: 13 } }, showlegend: false, hovermode: "closest",
-         xaxis: { title: "Volatility %" }, yaxis: { title: "CAGR %" } });
-
   const years = d.yearly.map((y) => String(y.year));
   plot("cmp-yearly", [{
     type: "heatmap", x: names, y: years, z: d.yearly.map((y) => names.map((n) => y[n])),
@@ -495,10 +488,6 @@ async function runCompare() {
     text: d.yearly.map((y) => names.map((n) => fmt(y[n], 1))), texttemplate: "%{text}", hovertemplate: "%{y} %{x}: %{z:.1f}%<extra></extra>",
   }], { title: { text: "Calendar-year returns (%)", font: { size: 13 } }, yaxis: { autorange: "reversed", type: "category" }, hovermode: "closest", margin: { l: 50, r: 10, t: 64, b: 90 } });
 
-  plot("cmp-corr", [{
-    type: "heatmap", x: d.correlation.names, y: d.correlation.names, z: d.correlation.matrix,
-    colorscale: "Viridis", zmin: -1, zmax: 1, texttemplate: "%{z:.2f}",
-  }], { title: { text: "Daily-return correlation", font: { size: 13 } }, hovermode: "closest", margin: { l: 130, r: 10, t: 64, b: 110 } });
 }
 
 // ------------------------------------------------------------------ validation
@@ -522,8 +511,6 @@ async function runValidate() {
     kpi("OOS return", fmt(os.total_return, 1, "%"), `CAGR ${fmt(os.cagr, 1, "%")}`, cls(os.total_return)),
     kpi("OOS max DD", fmt(os.max_drawdown, 1, "%"), `IS ${fmt(is.max_drawdown, 1, "%")}`, "neg"),
     kpi("Default params OOS", fmt(d.default_params_oos.sharpe), "Sharpe without tuning"),
-    kpi("IS→OOS rank corr.", fmt(d.rank_correlation), "Does IS rank predict OOS?", cls(d.rank_correlation)),
-    kpi("PBO", d.pbo ? fmt(d.pbo.pbo, 1, "%") : "–", d.pbo ? d.pbo.interpretation : "", d.pbo && d.pbo.pbo > 50 ? "neg" : "pos"),
   ].join("");
 
   const isD = d.in_sample.dates, osD = d.out_of_sample.dates;
@@ -537,32 +524,13 @@ async function runValidate() {
     annotations: [{ x: osD[0], y: 1, yref: "paper", text: "unseen data →", showarrow: false, xanchor: "left", font: { color: "#22d3ee" } }],
   });
 
-  const sc = d.scatter;
-  const lim = [Math.min(...sc.map((s) => Math.min(s.is_sharpe, s.oos_sharpe))) - .1, Math.max(...sc.map((s) => Math.max(s.is_sharpe, s.oos_sharpe))) + .1];
-  plot("val-scatter", [
-    { x: sc.map((s) => s.is_sharpe), y: sc.map((s) => s.oos_sharpe), mode: "markers", text: sc.map((s) => s.params),
-      marker: { color: COLORS[0], size: 7, opacity: .7 }, name: "Parameter sets", hovertemplate: "%{text}<br>IS %{x:.2f} → OOS %{y:.2f}<extra></extra>" },
-    { x: [sc[0].is_sharpe], y: [sc[0].oos_sharpe], mode: "markers", name: "Chosen (best IS)", marker: { color: "#fbbf24", size: 14, symbol: "star" } },
-    { x: lim, y: lim, mode: "lines", name: "IS = OOS", line: { dash: "dot", color: BH_COLOR } },
-  ], { title: { text: "In-sample vs out-of-sample Sharpe, every combination", font: { size: 13 } }, hovermode: "closest",
-       xaxis: { title: "In-sample Sharpe" }, yaxis: { title: "Out-of-sample Sharpe" } });
-
   if (d.heatmap) {
     plot("val-heat", [{ type: "heatmap", x: d.heatmap.x.map(String), y: d.heatmap.y.map(String), z: d.heatmap.z,
       colorscale: [[0, "#f87171"], [0.5, "#fbbf24"], [1, "#34d399"]], texttemplate: "%{z:.2f}", hovertemplate: `${d.heatmap.x_name}=%{x}, ${d.heatmap.y_name}=%{y}: Sharpe %{z:.2f}<extra></extra>` }],
-      { title: { text: "In-sample Sharpe surface (smooth plateau = robust, isolated spike = fragile)", font: { size: 12 } },
+      { title: { text: "Training Sharpe for each parameter pair (a smooth area is safer than a single peak)", font: { size: 12 } },
         xaxis: { title: d.heatmap.x_name, type: "category" }, yaxis: { title: d.heatmap.y_name, type: "category" }, hovermode: "closest" });
   } else Plotly.purge("val-heat");
 
-  if (d.pbo) {
-    const bins = { start: Math.floor(Math.min(...d.pbo.logits)), end: Math.ceil(Math.max(...d.pbo.logits)) + 0.25, size: 0.25 };
-    plot("val-pbo", [
-      { type: "histogram", x: d.pbo.logits.filter((l) => l <= 0), xbins: bins, marker: { color: "#f87171" }, name: "IS winner below OOS median" },
-      { type: "histogram", x: d.pbo.logits.filter((l) => l > 0), xbins: bins, marker: { color: "#34d399" }, name: "IS winner above OOS median" }],
-      { title: { text: `Probability of Backtest Overfitting = ${fmt(d.pbo.pbo, 1)}% (${d.pbo.splits} CSCV splits)`, font: { size: 13 } },
-        xaxis: { title: "logit of the IS-best config's OOS rank" }, bargap: .05, barmode: "overlay", hovermode: "closest",
-        shapes: [{ type: "line", x0: 0, x1: 0, yref: "paper", y0: 0, y1: 1, line: { color: "#fbbf24", dash: "dash" } }] });
-  } else Plotly.purge("val-pbo");
 
   $("#val-top").innerHTML = table([
     { label: "Params", key: "params" }, { label: "IS Sharpe", key: "sharpe", fmt: (v) => fmt(v) },
@@ -584,8 +552,7 @@ async function runWalkForward() {
     kpi("OOS CAGR", fmt(s.oos_cagr, 1, "%"), "", cls(s.oos_cagr)),
     kpi("OOS max DD", fmt(s.oos_max_drawdown, 1, "%"), `B&H ${fmt(b.max_drawdown, 1, "%")}`, "neg"),
     kpi("Mean IS → OOS Sharpe", `${fmt(s.mean_is_sharpe)} → ${fmt(s.mean_oos_sharpe)}`, "per window"),
-    kpi("WF efficiency", fmt(s.walk_forward_efficiency, 0, "%"), "OOS / IS annualised return", (s.walk_forward_efficiency ?? 0) > 50 ? "pos" : "neg"),
-    kpi("Profitable windows", fmt(s.pct_windows_profitable, 0, "%"), `${s.distinct_param_sets} distinct param sets`),
+    kpi("Profitable windows", fmt(s.pct_windows_profitable, 0, "%"), "test windows with a gain"),
   ].join("");
   plot("wf-equity", [
     { x: d.dates, y: d.equity, name: "Walk-forward OOS equity", line: { color: COLORS[1], width: 2 } },
@@ -615,7 +582,7 @@ const REGIME_COLORS = {
 };
 async function runRegimes() {
   const specs = checkedSpecs($("#rg-list"));
-  const d = await api("/api/regimes", { ...base(), strategies: specs, method: $("#rg-method").value }, "Classifying regimes…");
+  const d = await api("/api/regimes", { ...base(), strategies: specs }, "Classifying regimes…");
   const regimes = [...new Set(d.labels)].filter((r) => r && r !== "Unknown" && !String(r).includes("Unknown"));
   const traces = [{ x: d.dates, y: d.close, name: "Close", line: { color: "#c9cde0", width: 1 }, hoverinfo: "skip", showlegend: false }];
   regimes.forEach((r) => traces.push({
@@ -663,11 +630,6 @@ async function runML() {
   const imp = Object.entries(d.feature_importance).reverse();
   plot("ml-imp", [{ type: "bar", orientation: "h", x: imp.map((x) => x[1]), y: imp.map((x) => x[0]), marker: { color: COLORS[0] } }],
     { title: { text: "Feature importance (avg over fits)", font: { size: 13 } }, margin: { l: 95, r: 10, t: 50, b: 30 }, hovermode: "closest" });
-  plot("ml-cal", [
-    { type: "bar", x: d.calibration.map((c) => c.bucket), y: d.calibration.map((c) => c.hit_rate), name: "Actual up-rate",
-      marker: { color: COLORS[1] }, text: d.calibration.map((c) => `n=${c.count}`), textposition: "outside" },
-    { x: d.calibration.map((c) => c.bucket), y: d.calibration.map(() => d.up_day_ratio), mode: "lines", name: "Base rate", line: { dash: "dot", color: BH_COLOR } },
-  ], { title: { text: "Calibration: actual up-rate by predicted P(up) bucket", font: { size: 13 } }, yaxis: { title: "% days up" }, xaxis: { type: "category" } });
   plot("ml-proba", [
     { x: d.dates, y: d.proba, name: "P(next close up)", line: { color: COLORS[3], width: 1 } },
     { x: [d.dates[0], d.dates[d.dates.length - 1]], y: [body.threshold, body.threshold], mode: "lines", name: "Entry threshold", line: { dash: "dash", color: "#34d399" } },
@@ -721,7 +683,7 @@ async function runReport() {
   const sections = r.sections.map((s) => {
     const v = s.validation;
     const vline = v && v.is_sharpe !== undefined
-      ? `<p><span class="badge ${v.verdict}">${v.verdict}</span> In-sample Sharpe ${fmt(v.is_sharpe)} → out-of-sample ${fmt(v.oos_sharpe)}${v.pbo !== null && v.pbo !== undefined ? ` · PBO ${fmt(v.pbo, 1)}%` : ""} · best params ${esc(Object.entries(v.best_params).map(([k, x]) => `${k}=${x}`).join(", "))}</p>` : "";
+      ? `<p><span class="badge ${v.verdict}">${v.verdict}</span> In-sample Sharpe ${fmt(v.is_sharpe)} → out-of-sample ${fmt(v.oos_sharpe)} · best params ${esc(Object.entries(v.best_params).map(([k, x]) => `${k}=${x}`).join(", "))}</p>` : "";
     const cost = s.cost ? `<p class="muted">Break-even round-trip cost: ${s.cost.break_even_bps === null ? "> 100" : fmt(s.cost.break_even_bps, 1)} bps · turnover ${fmt(s.cost.turnover, 1)} position changes / yr</p>` : "";
     return `<div class="card"><h2>${esc(s.name)}</h2>${vline}${cost}
       <div class="sw"><div class="strengths"><h4>Strengths</h4><ul>${s.strengths.map((x) => `<li>${esc(x)}</li>`).join("") || "<li>None identified</li>"}</ul></div>

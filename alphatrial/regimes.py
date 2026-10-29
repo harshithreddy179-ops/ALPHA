@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from sklearn.mixture import GaussianMixture
 
 from . import indicators as ind
 from .metrics import TRADING_DAYS
@@ -35,26 +34,6 @@ def classify_rule_based(df: pd.DataFrame, trend_window: int = 100, vol_window: i
     out["regime"] = out["trend"] + " / " + out["vol"]
     out.loc[(out["trend"] == "Unknown") | (out["vol"] == "Unknown"), "regime"] = "Unknown"
     return out
-
-
-def classify_gmm(df: pd.DataFrame, n_states: int = 3, train_frac: float = 0.5,
-                 seed: int = 0) -> pd.Series:
-    """Unsupervised regimes: a Gaussian mixture on (20d return, 20d vol), fitted on the
-    first `train_frac` of history only and then applied forward. States are named by
-    their mean return so that labels are comparable with the rule-based ones."""
-    c = df["Close"]
-    r = c.pct_change()
-    X = pd.DataFrame({"ret": r.rolling(20).mean() * TRADING_DAYS,
-                      "vol": r.rolling(20).std() * np.sqrt(TRADING_DAYS)}).dropna()
-    cut = int(len(X) * train_frac)
-    gm = GaussianMixture(n_components=n_states, random_state=seed, n_init=3).fit(X.iloc[:cut])
-    states = gm.predict(X)
-    order = np.argsort(-gm.means_[:, 0])
-    names = {order[0]: "Bull", order[-1]: "Bear"}
-    for k in order[1:-1]:
-        names[k] = "Sideways"
-    lab = pd.Series([names[s] for s in states], index=X.index)
-    return lab.reindex(df.index).fillna("Unknown")
 
 
 def regime_performance(strategy_returns: dict[str, pd.Series], labels: pd.Series) -> list[dict]:

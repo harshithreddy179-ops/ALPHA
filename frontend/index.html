@@ -142,12 +142,8 @@
       <div class="card"><h3>Leaderboard</h3><div id="cmp-table" class="table-wrap"></div></div>
       <div class="card"><div id="cmp-equity" class="chart tall"></div></div>
       <div class="grid2">
-        <div class="card"><div id="cmp-scatter" class="chart"></div></div>
         <div class="card"><div id="cmp-dd" class="chart"></div></div>
-      </div>
-      <div class="grid2">
         <div class="card"><div id="cmp-yearly" class="chart"></div></div>
-        <div class="card"><div id="cmp-corr" class="chart"></div></div>
       </div>
     </section>
 
@@ -166,11 +162,7 @@
       <div id="val-kpis" class="kpis"></div>
       <div class="card"><div id="val-equity" class="chart"></div></div>
       <div class="grid2">
-        <div class="card"><div id="val-scatter" class="chart"></div></div>
         <div class="card"><div id="val-heat" class="chart"></div></div>
-      </div>
-      <div class="grid2">
-        <div class="card"><div id="val-pbo" class="chart"></div></div>
         <div class="card"><h3>Top in-sample parameter sets</h3><div id="val-top" class="table-wrap"></div></div>
       </div>
     </section>
@@ -194,13 +186,10 @@
     <!-- REGIMES -->
     <section class="tab" id="tab-regimes">
       <div class="card controls">
-        <label>Classifier <select id="rg-method">
-          <option value="rules">Rule-based (trend × volatility)</option>
-          <option value="gmm">ML: Gaussian Mixture (unsupervised)</option></select></label>
         <div id="rg-list" class="checklist"></div>
         <button class="primary" id="rg-run">▶ Analyse regimes</button>
       </div>
-      <p class="muted small">Each day is labelled using trailing data only, and each return is attributed to the regime known at the previous close. This shows <i>when</i> a strategy works and when it breaks.</p>
+      <p class="muted small">Each day is labelled Bull / Bear / Sideways and High / Low volatility using only past prices. This shows <i>when</i> a strategy works and when it breaks.</p>
       <div class="card"><div id="rg-price" class="chart tall"></div></div>
       <div class="grid2">
         <div class="card"><div id="rg-bars" class="chart"></div></div>
@@ -214,8 +203,7 @@
       <div class="card controls">
         <label>Model <select id="ml-model">
           <option value="logistic">Logistic regression</option>
-          <option value="random_forest">Random forest</option>
-          <option value="gradient_boosting">Gradient boosting</option></select></label>
+          <option value="random_forest">Random forest</option></select></label>
         <label>P(up) entry threshold <input type="number" id="ml-threshold" value="0.52" min="0.5" max="0.7" step="0.01"></label>
         <label>Train window <input type="number" id="ml-window" value="756" min="252" step="63"></label>
         <label>Retrain every <input type="number" id="ml-retrain" value="63" min="21" step="21"></label>
@@ -226,9 +214,8 @@
       <div id="ml-kpis" class="kpis"></div>
       <div class="grid2">
         <div class="card"><div id="ml-imp" class="chart"></div></div>
-        <div class="card"><div id="ml-cal" class="chart"></div></div>
+        <div class="card"><div id="ml-proba" class="chart"></div></div>
       </div>
-      <div class="card"><div id="ml-proba" class="chart"></div></div>
       <div class="card"><div id="ml-equity" class="chart"></div></div>
     </section>
 
