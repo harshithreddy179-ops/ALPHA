@@ -124,12 +124,12 @@ def ml_signals(df, model="logistic", threshold=0.52, train_window=756, retrain_e
 
 
 ML_STRATEGY = Strategy(
-    "ml", "ML Direction Model",
-    "Walk-forward classifier (logistic regression or random forest) that predicts "
-    "next-day direction from technical features; goes long when P(up) > threshold.",
+    "ml", "ML Model",
+    "A machine-learning model predicts if tomorrow will be up; it buys when it is confident "
+    "and sells when it expects a fall.",
     [Param("model", "logistic", ["logistic", "random_forest"], "Model", "choice"),
-     Param("threshold", 0.52, [0.50, 0.52, 0.55], "P(up) threshold", "float"),
-     Param("train_window", 756, [504, 756], "Train window (days)"),
+     Param("threshold", 0.52, [0.50, 0.52, 0.55], "Confidence to buy", "float"),
+     Param("train_window", 756, [504, 756], "Training days"),
      Param("retrain_every", 63, [63], "Retrain every (days)")],
     ml_signals)
 

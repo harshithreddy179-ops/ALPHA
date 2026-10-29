@@ -3,252 +3,229 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AlphaTrial: Strategy Lab</title>
+  <title>AlphaTrial</title>
   <link rel="stylesheet" href="/static/styles.css">
   <script src="/static/vendor/plotly.min.js"></script>
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="logo">α</span>
-    <div>
-      <h1>AlphaTrial</h1>
-      <p>Build · Backtest · Validate</p>
-    </div>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="brand"><span class="logo">α</span> AlphaTrial</div>
+    <nav id="tabs">
+      <button data-tab="market">Market</button>
+      <button data-tab="backtest" class="active">Backtest</button>
+      <button data-tab="compare">Compare</button>
+      <button data-tab="validate">Validate</button>
+      <button data-tab="ml">ML Model</button>
+      <button data-tab="report">Report</button>
+    </nav>
   </div>
-  <nav id="tabs">
-    <button data-tab="market">Market</button>
-    <button data-tab="backtest" class="active">Backtest</button>
-    <button data-tab="compare">Compare</button>
-    <button data-tab="validate">Validation Lab</button>
-    <button data-tab="walkforward">Walk-Forward</button>
-    <button data-tab="regimes">Regimes</button>
-    <button data-tab="ml">ML Lab</button>
-    <button data-tab="costs">Cost Impact</button>
-    <button data-tab="report">Report</button>
-  </nav>
 </header>
 
-<div class="layout">
-  <aside class="sidebar">
-    <section>
-      <h3>Data</h3>
-      <label>Exchange
-        <select id="exchange"><option value="NSE">NSE (.NS)</option><option value="BSE">BSE (.BO)</option></select>
-      </label>
-      <label>Stock / index
-        <select id="dataset"></select>
-      </label>
-      <div class="custom-sym">
-        <input id="custom-symbol" placeholder="Any symbol, e.g. IRCTC, ZYDUSLIFE">
-        <button class="ghost" id="custom-load">Load</button>
-      </div>
-      <div id="dataset-info" class="muted small"></div>
-      <label class="upload">
-        <input type="file" id="upload" accept=".csv">
-        <span>⬆ Upload CSV (Date, Open, High, Low, Close, Volume)</span>
-      </label>
-      <div class="row2">
-        <label>Start <input type="date" id="start"></label>
-        <label>End <input type="date" id="end"></label>
-      </div>
-    </section>
-    <section>
-      <h3>Portfolio &amp; Costs</h3>
-      <label>Starting capital <input type="number" id="capital" value="100000" min="1000" step="1000"></label>
-      <div class="row2">
-        <label>Commission (bps) <input type="number" id="commission" value="5" min="0" step="1"></label>
-        <label>Slippage (bps) <input type="number" id="slippage" value="5" min="0" step="1"></label>
-      </div>
-      <label>Fixed fee / order <input type="number" id="fee" value="0" min="0" step="0.5"></label>
-    </section>
-    <section class="rules-box">
-      <h3>Engine guarantees</h3>
-      <ul class="checks">
-        <li>Signal at close <b>t</b> → fill at open <b>t+1</b></li>
-        <li>Whole shares, no leverage, cash-constrained</li>
-        <li>Commission + slippage on every fill</li>
-        <li>Indicators use trailing data only</li>
-        <li>Ranked by Sharpe, not raw profit</li>
-      </ul>
-    </section>
-  </aside>
+<!-- Stock picker, shared by every page -->
+<section class="picker">
+  <div class="picker-inner">
+    <label class="field">Exchange
+      <select id="exchange"><option value="NSE">NSE</option><option value="BSE">BSE</option></select>
+    </label>
+    <label class="field grow">Stock or index
+      <select id="dataset"></select>
+    </label>
+    <label class="field">Search any symbol
+      <span class="search">
+        <input id="custom-symbol" placeholder="e.g. IRCTC">
+        <button class="btn light" id="custom-load">Go</button>
+      </span>
+    </label>
+    <button class="btn light" id="settings-toggle">⚙ Settings</button>
+  </div>
+  <div class="picker-inner"><p id="dataset-info" class="muted"></p></div>
 
-  <main>
-    <!-- MARKET -->
-    <section class="tab" id="tab-market">
-      <div class="card controls">
-        <label>Universe <select id="mk-group">
-          <option value="nifty50">NIFTY 50 constituents</option>
-          <option value="indices">Indian indices (NIFTY, SENSEX, sectoral)</option></select></label>
-        <button class="primary" id="mk-run">⟳ Load live market data</button>
-        <span class="muted small">Daily data from Yahoo Finance (end-of-day, may lag by a session). Click any row to backtest it.</span>
-      </div>
-      <div class="grid2">
-        <div class="card"><div id="mk-movers" class="chart"></div></div>
-        <div class="card"><div id="mk-sector" class="chart"></div></div>
-      </div>
-      <div class="card"><h3 id="mk-title">Market snapshot</h3><div id="mk-table" class="table-wrap tall-table"></div></div>
-    </section>
+  <div id="settings" class="picker-inner settings hidden">
+    <label class="field">From <input type="date" id="start"></label>
+    <label class="field">To <input type="date" id="end"></label>
+    <label class="field">Starting money (₹) <input type="number" id="capital" value="100000" min="1000" step="1000"></label>
+    <label class="field">Brokerage (bps) <input type="number" id="commission" value="5" min="0" step="1"></label>
+    <label class="field">Slippage (bps) <input type="number" id="slippage" value="5" min="0" step="1"></label>
+    <label class="field">Your own CSV
+      <span class="upload"><input type="file" id="upload" accept=".csv"><span class="btn light">Upload file</span></span>
+    </label>
+    <p class="muted small full">1 bps = 0.01%. Costs are charged on every buy and sell. CSV needs columns Date, Open, High, Low, Close, Volume.</p>
+  </div>
+</section>
 
-    <!-- BACKTEST -->
-    <section class="tab active" id="tab-backtest">
-      <div class="card controls">
-        <label>Strategy <select id="bt-strategy"></select></label>
-        <div id="bt-params" class="params"></div>
-        <button class="primary" id="bt-run">▶ Run backtest</button>
+<main>
+  <!-- MARKET -->
+  <section class="tab" id="tab-market">
+    <div class="page-head">
+      <div>
+        <h1>Market today</h1>
+        <p class="muted">Latest prices for the NIFTY 50. Click any row to test a strategy on it.</p>
       </div>
-      <p id="bt-desc" class="muted"></p>
-      <div id="rule-builder" class="card hidden">
-        <h3>Design your own strategy</h3>
-        <p class="muted small">Combine conditions on price, SMA, EMA, RSI, momentum, volatility, Bollinger bands and volume. Entry fires when the conditions hold; the exit closes the position.</p>
-        <div class="rb-cols">
-          <div>
-            <div class="rb-head"><b>Entry</b> when <select id="rb-entry-mode"><option value="all">ALL</option><option value="any">ANY</option></select> of:</div>
-            <div id="rb-entry"></div>
-            <button class="ghost" data-add="entry">+ condition</button>
-          </div>
-          <div>
-            <div class="rb-head"><b>Exit</b> when <select id="rb-exit-mode"><option value="any">ANY</option><option value="all">ALL</option></select> of:</div>
-            <div id="rb-exit"></div>
-            <button class="ghost" data-add="exit">+ condition</button>
-          </div>
+      <div class="actions">
+        <select id="mk-group">
+          <option value="nifty50">NIFTY 50 stocks</option>
+          <option value="indices">Indices</option>
+        </select>
+        <button class="btn" id="mk-run">Refresh</button>
+      </div>
+    </div>
+    <div class="card"><div id="mk-table" class="table-wrap"><p class="muted">Loading…</p></div></div>
+  </section>
+
+  <!-- BACKTEST -->
+  <section class="tab active" id="tab-backtest">
+    <div class="page-head">
+      <div>
+        <h1>Backtest a strategy</h1>
+        <p class="muted" id="bt-desc"></p>
+      </div>
+    </div>
+    <div class="card controls">
+      <label class="field">Strategy <select id="bt-strategy"></select></label>
+      <div id="bt-params" class="params"></div>
+      <button class="btn" id="bt-run">Run backtest</button>
+    </div>
+
+    <div id="rule-builder" class="card hidden">
+      <h2>Make your own rules</h2>
+      <div class="rb-row">
+        <div>
+          <p><b>Buy</b> when <select id="rb-entry-mode"><option value="all">all</option><option value="any">any</option></select> of these are true:</p>
+          <div id="rb-entry"></div>
+          <button class="btn light small" data-add="entry">+ Add rule</button>
         </div>
-        <div class="rb-presets">Presets:
-          <button class="ghost" data-preset="golden">Golden cross</button>
-          <button class="ghost" data-preset="dip">Buy the dip in uptrend</button>
-          <button class="ghost" data-preset="breakout">Momentum breakout</button>
+        <div>
+          <p><b>Sell</b> when <select id="rb-exit-mode"><option value="any">any</option><option value="all">all</option></select> of these are true:</p>
+          <div id="rb-exit"></div>
+          <button class="btn light small" data-add="exit">+ Add rule</button>
         </div>
       </div>
-      <div id="bt-kpis" class="kpis"></div>
-      <div class="card"><div id="bt-price" class="chart tall"></div></div>
-      <div class="grid2">
-        <div class="card"><div id="bt-equity" class="chart"></div></div>
-        <div class="card"><div id="bt-dd" class="chart"></div></div>
-      </div>
-      <div class="card">
-        <h3>Trade log</h3>
-        <div id="bt-trades" class="table-wrap"></div>
-      </div>
-    </section>
+      <p class="muted small">Examples:
+        <button class="link" data-preset="golden">Golden cross</button> ·
+        <button class="link" data-preset="dip">Buy the dip</button>
+      </p>
+    </div>
 
-    <!-- COMPARE -->
-    <section class="tab" id="tab-compare">
-      <div class="card controls">
-        <div id="cmp-list" class="checklist"></div>
-        <button class="primary" id="cmp-run">▶ Compare vs Buy &amp; Hold</button>
-      </div>
-      <p class="muted small">Every strategy uses its default parameters (the Backtest tab's parameters for the selected strategy), the same period and the same costs. The leaderboard is ranked by <b>Sharpe ratio</b> (risk-adjusted), not total profit.</p>
-      <div class="card"><h3>Leaderboard</h3><div id="cmp-table" class="table-wrap"></div></div>
-      <div class="card"><div id="cmp-equity" class="chart tall"></div></div>
-      <div class="grid2">
-        <div class="card"><div id="cmp-dd" class="chart"></div></div>
-        <div class="card"><div id="cmp-yearly" class="chart"></div></div>
-      </div>
-    </section>
+    <p id="bt-summary" class="summary"></p>
+    <div id="bt-kpis" class="kpis"></div>
+    <div class="card"><h2>Price and trades</h2><div id="bt-price" class="chart tall"></div></div>
+    <div class="card"><h2>Your money over time</h2><div id="bt-equity" class="chart"></div></div>
+    <details class="card">
+      <summary>Show all trades</summary>
+      <div id="bt-trades" class="table-wrap"></div>
+    </details>
+  </section>
 
-    <!-- VALIDATION -->
-    <section class="tab" id="tab-validate">
-      <div class="card controls">
-        <label>Strategy <select id="val-strategy"></select></label>
-        <label>Train share <input type="number" id="val-ratio" value="0.6" min="0.3" max="0.85" step="0.05"></label>
-        <label>Optimise for <select id="val-objective">
-          <option value="sharpe">Sharpe</option><option value="total_return">Total return</option>
-          <option value="calmar">Calmar</option><option value="sortino">Sortino</option></select></label>
-        <button class="primary" id="val-run">▶ Optimise on train, test on unseen data</button>
+  <!-- COMPARE -->
+  <section class="tab" id="tab-compare">
+    <div class="page-head">
+      <div>
+        <h1>Compare strategies</h1>
+        <p class="muted">All strategies use the same stock, dates and costs. Ranked by Sharpe ratio (return for the risk taken).</p>
       </div>
-      <p class="muted small">The parameter grid is searched on the <b>training</b> period only. The best parameters are then frozen and run on the <b>test</b> period they have never seen. A big drop in performance means the strategy was fitted to noise.</p>
+    </div>
+    <div class="card controls">
+      <div id="cmp-list" class="checklist"></div>
+      <button class="btn" id="cmp-run">Compare</button>
+    </div>
+    <div class="card"><h2>Ranking</h2><div id="cmp-table" class="table-wrap"><p class="muted">Pick strategies and press Compare.</p></div></div>
+    <div class="card"><h2>Money over time</h2><div id="cmp-equity" class="chart"></div></div>
+    <div class="grid2">
+      <div class="card"><h2>Effect of trading costs</h2><p class="muted small">Total return as brokerage + slippage per trade goes up.</p><div id="cs-return" class="chart"></div></div>
+      <div class="card"><h2>Bull, bear and sideways markets</h2><p class="muted small">Yearly return in each type of market.</p><div id="rg-bars" class="chart"></div></div>
+    </div>
+    <div class="card"><h2>When do costs wipe out the profit?</h2><div id="cs-table" class="table-wrap"></div></div>
+  </section>
+
+  <!-- VALIDATE -->
+  <section class="tab" id="tab-validate">
+    <div class="page-head">
+      <div>
+        <h1>Is the result real or luck?</h1>
+        <p class="muted">A strategy tuned on past data can look great and still fail later. These two tests check that.</p>
+      </div>
+    </div>
+    <div class="card controls">
+      <label class="field">Strategy <select id="val-strategy"></select></label>
+      <button class="btn" id="val-run">Run both tests</button>
+      <details class="inline-details">
+        <summary>Options</summary>
+        <div class="params">
+          <label class="field">Training share <input type="number" id="val-ratio" value="0.6" min="0.3" max="0.85" step="0.05"></label>
+          <label class="field">Train window (days) <input type="number" id="wf-train" value="504" min="120" step="21"></label>
+          <label class="field">Test window (days) <input type="number" id="wf-test" value="126" min="21" step="21"></label>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>Test 1: Train on old data, test on new data</h2>
+      <p class="muted">Settings are tuned on the first 60% of the history, then tested on the remaining 40% that they never saw.</p>
       <div id="val-verdict"></div>
       <div id="val-kpis" class="kpis"></div>
-      <div class="card"><div id="val-equity" class="chart"></div></div>
-      <div class="grid2">
-        <div class="card"><div id="val-heat" class="chart"></div></div>
-        <div class="card"><h3>Top in-sample parameter sets</h3><div id="val-top" class="table-wrap"></div></div>
-      </div>
-    </section>
+      <div id="val-equity" class="chart"></div>
+    </div>
 
-    <!-- WALK-FORWARD -->
-    <section class="tab" id="tab-walkforward">
-      <div class="card controls">
-        <label>Strategy <select id="wf-strategy"></select></label>
-        <label>Train window (days) <input type="number" id="wf-train" value="504" min="120" step="21"></label>
-        <label>Test window (days) <input type="number" id="wf-test" value="126" min="21" step="21"></label>
-        <label class="inline"><input type="checkbox" id="wf-anchored"> Anchored (expanding)</label>
-        <button class="primary" id="wf-run">▶ Run walk-forward</button>
-      </div>
-      <p class="muted small">Re-optimise on a rolling training window, trade the next test window with those frozen parameters, then roll forward. Only the out-of-sample segments are stitched together, which gives the most honest estimate of live performance.</p>
+    <div class="card">
+      <h2>Test 2: Repeat it across many periods</h2>
+      <p class="muted">Tune on 2 years, trade the next 6 months, move forward and repeat. Purple bars are training results, green bars are what happened next.</p>
+      <div id="wf-verdict"></div>
       <div id="wf-kpis" class="kpis"></div>
-      <div class="card"><div id="wf-equity" class="chart"></div></div>
-      <div class="card"><div id="wf-bars" class="chart"></div></div>
-      <div class="card"><h3>Windows</h3><div id="wf-table" class="table-wrap"></div></div>
-    </section>
+      <div id="wf-bars" class="chart"></div>
+    </div>
+  </section>
 
-    <!-- REGIMES -->
-    <section class="tab" id="tab-regimes">
-      <div class="card controls">
-        <div id="rg-list" class="checklist"></div>
-        <button class="primary" id="rg-run">▶ Analyse regimes</button>
+  <!-- ML -->
+  <section class="tab" id="tab-ml">
+    <div class="page-head">
+      <div>
+        <h1>ML model</h1>
+        <p class="muted">Predicts whether tomorrow's price will go up, using only past data. The model is retrained every 3 months.</p>
       </div>
-      <p class="muted small">Each day is labelled Bull / Bear / Sideways and High / Low volatility using only past prices. This shows <i>when</i> a strategy works and when it breaks.</p>
-      <div class="card"><div id="rg-price" class="chart tall"></div></div>
-      <div class="grid2">
-        <div class="card"><div id="rg-bars" class="chart"></div></div>
-        <div class="card"><div id="rg-dist" class="chart"></div></div>
-      </div>
-      <div class="card"><h3>Performance by regime (annualised return % · Sharpe)</h3><div id="rg-table" class="table-wrap"></div></div>
-    </section>
-
-    <!-- ML -->
-    <section class="tab" id="tab-ml">
-      <div class="card controls">
-        <label>Model <select id="ml-model">
+    </div>
+    <div class="card controls">
+      <label class="field">Model
+        <select id="ml-model">
           <option value="logistic">Logistic regression</option>
-          <option value="random_forest">Random forest</option></select></label>
-        <label>P(up) entry threshold <input type="number" id="ml-threshold" value="0.52" min="0.5" max="0.7" step="0.01"></label>
-        <label>Train window <input type="number" id="ml-window" value="756" min="252" step="63"></label>
-        <label>Retrain every <input type="number" id="ml-retrain" value="63" min="21" step="21"></label>
-        <button class="primary" id="ml-run">▶ Train walk-forward model</button>
-      </div>
-      <p class="muted small">Predicts whether tomorrow closes higher using 12 technical features. The model is retrained on a rolling window, and every prediction comes from a model that never saw that day, so accuracy shown here is genuinely out of sample.</p>
-      <div id="ml-verdict"></div>
-      <div id="ml-kpis" class="kpis"></div>
-      <div class="grid2">
-        <div class="card"><div id="ml-imp" class="chart"></div></div>
-        <div class="card"><div id="ml-proba" class="chart"></div></div>
-      </div>
-      <div class="card"><div id="ml-equity" class="chart"></div></div>
-    </section>
+          <option value="random_forest">Random forest (slower)</option>
+        </select>
+      </label>
+      <button class="btn" id="ml-run">Train and test</button>
+    </div>
+    <div id="ml-verdict"></div>
+    <div id="ml-kpis" class="kpis"></div>
+    <div class="grid2">
+      <div class="card"><h2>Money over time</h2><div id="ml-equity" class="chart"></div></div>
+      <div class="card"><h2>What the model looks at most</h2><div id="ml-imp" class="chart"></div></div>
+    </div>
+  </section>
 
-    <!-- COSTS -->
-    <section class="tab" id="tab-costs">
-      <div class="card controls">
-        <div id="cs-list" class="checklist"></div>
-        <button class="primary" id="cs-run">▶ Sweep transaction costs</button>
+  <!-- REPORT -->
+  <section class="tab" id="tab-report">
+    <div class="page-head">
+      <div>
+        <h1>Report</h1>
+        <p class="muted">A summary of every strategy with its strengths and weaknesses.</p>
       </div>
-      <p class="muted small">Each strategy is re-run with the same signals at round-trip costs from 0 to 100 bps (commission + slippage). High-turnover strategies that look great before costs often lose their edge.</p>
-      <div class="grid2">
-        <div class="card"><div id="cs-return" class="chart"></div></div>
-        <div class="card"><div id="cs-sharpe" class="chart"></div></div>
-      </div>
-      <div class="card"><h3>Break-even analysis</h3><div id="cs-table" class="table-wrap"></div></div>
-    </section>
+    </div>
+    <div class="card controls">
+      <div id="rp-list" class="checklist"></div>
+      <button class="btn" id="rp-run">Create report</button>
+      <button class="btn light" id="rp-md">Download</button>
+      <button class="btn light" onclick="window.print()">Print / PDF</button>
+    </div>
+    <div id="rp-body" class="report"></div>
+  </section>
+</main>
 
-    <!-- REPORT -->
-    <section class="tab" id="tab-report">
-      <div class="card controls">
-        <div id="rp-list" class="checklist"></div>
-        <label class="inline"><input type="checkbox" id="rp-val" checked> Include out-of-sample validation</label>
-        <button class="primary" id="rp-run">▶ Generate report</button>
-        <button class="ghost" id="rp-md">⬇ Download Markdown</button>
-        <button class="ghost" onclick="window.print()">🖨 Print / PDF</button>
-      </div>
-      <div id="rp-body" class="report"></div>
-    </section>
-  </main>
-</div>
+<footer class="foot muted small">
+  Trades happen at the next day's opening price, so no future data is used. Data: Yahoo Finance. Past results don't guarantee future returns.
+</footer>
 
 <div id="toast" class="toast hidden"></div>
-<div id="loader" class="loader hidden"><div class="spinner"></div><span id="loader-text">Running…</span></div>
+<div id="loader" class="loader hidden"><div class="spinner"></div><span id="loader-text">Working…</span></div>
 <script src="/static/app.js"></script>
 </body>
 </html>

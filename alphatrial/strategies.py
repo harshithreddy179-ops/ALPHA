@@ -106,25 +106,25 @@ def register(s: Strategy) -> Strategy:
 
 
 register(Strategy(
-    "sma_cross", "SMA Crossover",
-    "Long when the fast simple moving average is above the slow one; flat otherwise.",
-    [Param("fast", 20, [5, 10, 20, 30, 50], "Fast SMA"),
-     Param("slow", 50, [50, 100, 150, 200], "Slow SMA")],
+    "sma_cross", "Moving Average Crossover",
+    "Buy when the short-term average price rises above the long-term average, sell when it falls below.",
+    [Param("fast", 20, [5, 10, 20, 30, 50], "Short average (days)"),
+     Param("slow", 50, [50, 100, 150, 200], "Long average (days)")],
     sma_crossover, constraint=lambda p: p["fast"] < p["slow"]))
 
 register(Strategy(
-    "rsi", "RSI Mean Reversion",
-    "Buy when RSI drops below the oversold level, sell when it rises above overbought.",
-    [Param("period", 14, [7, 14, 21], "RSI period"),
-     Param("oversold", 30, [20, 25, 30, 35], "Oversold"),
-     Param("overbought", 70, [60, 65, 70, 75, 80], "Overbought")],
+    "rsi", "RSI (Buy Low, Sell High)",
+    "Buy when RSI shows the stock has fallen too much, sell when it shows it has risen too much.",
+    [Param("period", 14, [7, 14, 21], "RSI days"),
+     Param("oversold", 30, [20, 25, 30, 35], "Buy below"),
+     Param("overbought", 70, [60, 65, 70, 75, 80], "Sell above")],
     rsi_reversion, constraint=lambda p: p["oversold"] < p["overbought"]))
 
 register(Strategy(
-    "momentum", "Time-Series Momentum",
-    "Long when the trailing N-day return exceeds a threshold.",
-    [Param("lookback", 60, [20, 40, 60, 90, 120, 180, 250], "Lookback (days)"),
-     Param("threshold", 0.0, [0.0, 0.02, 0.05], "Threshold", "float")],
+    "momentum", "Momentum",
+    "Hold the stock while its price is higher than it was N days ago, otherwise stay in cash.",
+    [Param("lookback", 60, [20, 40, 60, 90, 120, 180, 250], "Look back (days)"),
+     Param("threshold", 0.0, [0.0, 0.02, 0.05], "Min. rise (0.05 = 5%)", "float")],
     momentum_strategy))
 
 # --- user-designed rule strategies ---------------------------------------------------

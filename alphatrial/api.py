@@ -127,6 +127,7 @@ class WalkForwardReq(Base):
 
 class RegimeReq(Base):
     strategies: list[StrategySpec] = []
+    detail: bool = False  # False: Bull/Bear/Sideways only; True: also split by volatility
 
 
 class MLReq(Base):
@@ -317,7 +318,7 @@ def walkforward_ep(req: WalkForwardReq):
 def regimes_ep(req: RegimeReq):
     df = load(req.dataset)
     window = slice_period(df, req.start, req.end)
-    labels = classify_rule_based(df)["regime"].reindex(window.index)
+    labels = classify_rule_based(df)["regime" if req.detail else "trend"].reindex(window.index)
     rets = {}
     for s in req.strategies:
         strat = _guard(get, s.key, s.rules)
