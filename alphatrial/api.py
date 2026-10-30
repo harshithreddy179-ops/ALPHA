@@ -375,6 +375,44 @@ def report_md(req: ReportReq):
                              headers={"Content-Disposition": f'attachment; filename="{req.dataset}_report.md"'})
 
 
+@app.get("/api/summary")
+def summary(dataset: str = "YF:^NSEI", walkforward: bool = True):
+    """Headline results for one dataset with default settings: the three core strategies
+    vs buy-and-hold, their train/test verdicts, cost break-even and the ML baseline check."""
+    df = load(dataset)
+    specs = [{"key": "sma_cross"}, {"key": "rsi"}, {"key": "momentum"}]
+    cmp = _guard(compare, df, specs)
+    board = [{k: r[k] for k in ("name", "sharpe", "total_return", "cagr", "max_drawdown",
+                                "win_rate", "num_trades", "final_equity")} for r in cmp["leaderboard"]]
+    validation = {}
+    for s in specs:
+        strat = get(s["key"])
+        tt = train_test(df, strat)
+        validation[strat.name] = {
+            "verdict": tt["verdict"], "best_params": tt["best_params"],
+            "train_sharpe": tt["in_sample"]["metrics"]["sharpe"],
+            "test_sharpe": tt["out_of_sample"]["metrics"]["sharpe"],
+            "test_return": tt["out_of_sample"]["metrics"]["total_return"],
+            "train_period": tt["train_period"], "test_period": tt["test_period"],
+        }
+        if walkforward and s["key"] == "sma_cross":
+            validation[strat.name]["walk_forward"] = walk_forward(df, strat)["summary"]
+    costs = cost_sensitivity(df, specs)
+    cost_rows = [{"name": c["name"], "break_even_bps": c["break_even_bps"],
+                  "return_0bps": c["rows"][0]["total_return"],
+                  "return_lost_at_10bps": c["return_lost_at_10bps"]} for c in costs["strategies"]]
+    regimes = [{"regime": r["regime"], "pct_time": r["pct_time"],
+                **{k: v["ann_return"] for k, v in r.items() if isinstance(v, dict)}}
+               for r in regime_performance({k: v.returns for k, v in cmp["_results"].items()},
+                                           classify_rule_based(df)["trend"])]
+    mlr = ml_report(df)
+    return ok({
+        "dataset": dataset, "period": [df.index[0], df.index[-1]], "rows": len(df),
+        "leaderboard": board, "validation": validation, "costs": cost_rows, "regimes": regimes,
+        "ml": {k: mlr[k] for k in ("accuracy", "baseline_accuracy", "auc", "oos_predictions")},
+    })
+
+
 @app.get("/")
 def index():
     return FileResponse(FRONTEND / "index.html")
